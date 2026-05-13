@@ -1,0 +1,34 @@
+/* Базовый сброс (reset) */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;            /* убираем скролл на всю страницу */
+}
+
+body {
+    font-family: sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+img, picture, video, canvas, svg {
+    display: block;
+    max-width: 100%;
+}
+
+input, button, textarea, select {
+    font: inherit;
+}
+
+#app {
+    height: 100%;
+    width: 100%;
+}
