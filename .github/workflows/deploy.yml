@@ -2,8 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]   # или master – смотря как называется твоя основная ветка
-
+    branches: [ master ]
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
