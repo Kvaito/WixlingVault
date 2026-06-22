@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from 'pixi.js'
+import { Application, Container, Graphics, Sprite } from 'pixi.js'
 import { ParallaxLayer } from './layers/ParallaxLayer'
 import { PanoramaTiles } from './layers/PanoramaTiles'
 import { SceneEntity } from './entities/SceneEntity'
@@ -12,6 +12,7 @@ import {
   MID_ENTITIES,
   NEAR_ENTITIES,
 } from './data/scene-config'
+import { SPRITE_REGISTRY } from './data/assets'
 import { lerp } from './utils/lerp'
 
 export type LoreCallback = (lore: LoreData, screenX: number, screenY: number) => void
@@ -379,6 +380,7 @@ export class SceneManager {
       }
 
       if (entity) {
+        this.resolveSpriteUrl(entity, config)
         this.drawEntityPlaceholder(entity)
         this.midLayer.container.addChild(entity)
         this.midEntities.push(entity)
@@ -395,6 +397,7 @@ export class SceneManager {
       }
 
       if (entity) {
+        this.resolveSpriteUrl(entity, config)
         this.drawEntityPlaceholder(entity)
         this.nearLayer.container.addChild(entity)
         this.nearEntities.push(entity)
@@ -402,17 +405,46 @@ export class SceneManager {
     }
   }
 
+  /*
+    resolveSpriteUrl
+    Для сущностей со спрайтом (Character, Artifact, Structure) —
+    находит URL в SPRITE_REGISTRY по имени спрайта из конфига.
+  */
+  private resolveSpriteUrl(entity: SceneEntity, config: Record<string, unknown>): void {
+    if (entity instanceof Character) {
+      const spriteName = config.sprite as string | undefined
+      if (spriteName) {
+        entity.spriteUrl = SPRITE_REGISTRY[spriteName] ?? null
+      }
+    }
+  }
+
   private drawEntityPlaceholder(entity: SceneEntity): void {
+    // Персонаж с реальной картинкой — создаём Sprite
+    if (entity instanceof Character && entity.spriteUrl) {
+      const sprite = Sprite.from(entity.spriteUrl)
+      sprite.anchor.set(0.5, 1.0)  // Якорь внизу по центру — ноги персонажа на entity.y
+
+      // Автоскейл: персонаж занимает не более 80% высоты экрана
+      const maxHeight = this.app.screen.height * 0.8
+      if (sprite.height > maxHeight) {
+        const s = maxHeight / sprite.height
+        sprite.scale.set(s)
+      }
+
+      entity.body.addChild(sprite)
+      return
+    }
+
+    // Заглушки Graphics для сущностей без картинок
     const g = new Graphics()
 
     if (entity instanceof Character) {
-      // Фигурка персонажа: тело + голова
       g.ellipse(0, 0, 18, 30)
       g.fill({ color: 0x5577aa })
       g.circle(0, -25, 10)
       g.fill({ color: 0xddaa88 })
     } else if (entity instanceof Structure) {
-      // Здание с окнами
       const bw = 80
       const bh = 320
       g.rect(0, -bh, bw, bh)
@@ -424,7 +456,6 @@ export class SceneManager {
         g.fill({ color: 0xaaa060 })
       }
     } else if (entity instanceof Artifact) {
-      // Светящийся осколок
       g.poly([0, -15, 12, 5, -2, 20, -12, 5])
       g.fill({ color: 0x44aacc })
       g.circle(0, 0, 4)

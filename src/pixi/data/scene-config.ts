@@ -317,22 +317,34 @@ export const ARTIFACT_CONFIGS_NEAR: ArtifactConfig[] = [
 // ---------- Сущности near-слоя ----------
 
 export const CHARACTER_CONFIGS_NEAR: CharacterConfig[] = [
+  // {
+  //   id: 'musician',
+  //   x: 1500,
+  //   y: 200,
+  //   sprite: 'musician_body',
+  //   zIndex: 30,
+  //   lore: {
+  //     title: 'Музыкант',
+  //     text: 'Единственный, кто слышит мелодию осколков целиком. Его инструмент собран из фрагментов разных миров — каждая струна звучит голосом утраченного.',
+  //   },
+  //   defaultState: { playing: false, met: false },
+  // },
   {
-    id: 'musician',
-    x: 1500,
-    y: 200,
-    sprite: 'musician_body',
+    id: 'vensy',
+    x: 600,
+    y: 850,
+    sprite: 'vensy_body',
     zIndex: 30,
     lore: {
-      title: 'Музыкант',
-      text: 'Единственный, кто слышит мелодию осколков целиком. Его инструмент собран из фрагментов разных миров — каждая струна звучит голосом утраченного.',
+      title: 'Вэнси',
+      text: 'Изобретательница из Воксленда. Её мастерская полна чертежей устройств, которых ещё не существует — но она уверена, что однажды они заработают. Говорят, первый осколок она нашла, когда ей было семь.',
     },
-    defaultState: { playing: false, met: false },
+    defaultState: { met: false },
   },
 ]
 
 // ---------- Сводный экспорт ----------
 
 export const FAR_ENTITIES: [] = []
-export const MID_ENTITIES = [...CHARACTER_CONFIGS, ...STRUCTURE_CONFIGS, ...ARTIFACT_CONFIGS_MID]
-export const NEAR_ENTITIES = [...ARTIFACT_CONFIGS_NEAR, ...CHARACTER_CONFIGS_NEAR]
+export const MID_ENTITIES = []
+export const NEAR_ENTITIES = [...CHARACTER_CONFIGS_NEAR]

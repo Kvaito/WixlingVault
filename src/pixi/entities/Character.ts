@@ -47,6 +47,9 @@ export class Character extends SceneEntity {
   body: Container
   parts: Container
 
+  // URL спрайта тела — устанавливается SceneManager'ом из asset registry
+  spriteUrl: string | null = null
+
   constructor(config: CharacterConfig) {
     super(config.id, 'character', config.lore ?? null)
     this.body = new Container()
@@ -62,5 +65,24 @@ export class Character extends SceneEntity {
         this.setState(key, value)
       })
     }
+  }
+
+  /*
+    hitTest для персонажа — использует реальные границы спрайта, если он есть.
+    Иначе откатывается на радиусную проверку из SceneEntity.
+  */
+  override hitTest(localX: number, localY: number): boolean {
+    if (this.body.children.length > 0) {
+      // Используем getBounds с target = parent, чтобы получить координаты в пространстве слоя
+      const bounds = this.getBounds(false, this.parent ?? undefined)
+      return (
+        localX >= bounds.x &&
+        localX <= bounds.x + bounds.width &&
+        localY >= bounds.y &&
+        localY <= bounds.y + bounds.height
+      )
+    }
+    // Заглушка без спрайта — широкая зона над позицией
+    return Math.abs(localX - this.x) < 45 && Math.abs(localY - this.y) < 120
   }
 }
