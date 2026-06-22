@@ -15,3 +15,5 @@ import vensyImage from '../../assets/characters/VensyCharacter.png'
 export const SPRITE_REGISTRY: Record<string, string> = {
   vensy_body: vensyImage,
 }
+
+console.log('[assets] Sprite registry loaded:', JSON.stringify(SPRITE_REGISTRY, null, 2))

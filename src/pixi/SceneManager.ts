@@ -413,8 +413,11 @@ export class SceneManager {
   private resolveSpriteUrl(entity: SceneEntity, config: Record<string, unknown>): void {
     if (entity instanceof Character) {
       const spriteName = config.sprite as string | undefined
+      console.log(`[SceneManager] resolveSpriteUrl: entity=${entity.entityId} spriteName=${spriteName}`)
       if (spriteName) {
-        entity.spriteUrl = SPRITE_REGISTRY[spriteName] ?? null
+        const url = SPRITE_REGISTRY[spriteName]
+        entity.spriteUrl = url ?? null
+        console.log(`[SceneManager] resolveSpriteUrl: URL found = ${url ? 'YES' : 'NO'} → ${url}`)
       }
     }
   }
@@ -422,7 +425,12 @@ export class SceneManager {
   private drawEntityPlaceholder(entity: SceneEntity): void {
     // Персонаж с реальной картинкой — создаём Sprite
     if (entity instanceof Character && entity.spriteUrl) {
+      console.log(`[SceneManager] drawEntityPlaceholder: Character '${entity.entityId}' → Sprite.from(${entity.spriteUrl})`)
+
       const sprite = Sprite.from(entity.spriteUrl)
+
+      console.log(`[SceneManager] Sprite raw size: ${sprite.width}×${sprite.height}`)
+
       sprite.anchor.set(0.5, 1.0)  // Якорь внизу по центру — ноги персонажа на entity.y
 
       // Автоскейл: персонаж занимает не более 80% высоты экрана
@@ -430,7 +438,11 @@ export class SceneManager {
       if (sprite.height > maxHeight) {
         const s = maxHeight / sprite.height
         sprite.scale.set(s)
+        console.log(`[SceneManager] Scaled: factor=${s.toFixed(3)} → ${Math.round(sprite.width)}×${Math.round(sprite.height)}`)
       }
+
+      console.log(`[SceneManager] Entity position: x=${entity.x} y=${entity.y}`)
+      console.log(`[SceneManager] Screen: ${this.app.screen.width}×${this.app.screen.height}`)
 
       entity.body.addChild(sprite)
       return
