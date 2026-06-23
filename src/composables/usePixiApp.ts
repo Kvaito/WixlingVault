@@ -22,12 +22,11 @@ export function usePixiApp(): UsePixiAppReturn {
     canvasRef.value = canvas
     const pixiApp = await createApp()
 
-    // PixiJS создаёт свой canvas, заменяем наш
     canvas.replaceWith(pixiApp.canvas)
     canvasRef.value = pixiApp.canvas as HTMLCanvasElement
 
     app.value = pixiApp
-    const sm = new SceneManager(pixiApp)
+    const sm = await SceneManager.create(pixiApp)
     sceneManager.value = sm
     isReady.value = true
   }

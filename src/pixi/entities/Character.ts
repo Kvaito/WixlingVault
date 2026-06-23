@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js'
+import { Container, type Texture, Sprite } from 'pixi.js'
 import { SceneEntity, type LoreData } from './SceneEntity'
 
 /*
@@ -47,9 +47,6 @@ export class Character extends SceneEntity {
   body: Container
   parts: Container
 
-  // URL спрайта тела — устанавливается SceneManager'ом из asset registry
-  spriteUrl: string | null = null
-
   constructor(config: CharacterConfig) {
     super(config.id, 'character', config.lore ?? null)
     this.body = new Container()
@@ -67,22 +64,29 @@ export class Character extends SceneEntity {
     }
   }
 
-  /*
-    hitTest для персонажа — использует реальные границы спрайта, если он есть.
-    Иначе откатывается на радиусную проверку из SceneEntity.
-  */
+  setBodyTexture(texture: Texture, maxHeight: number): void {
+    const sprite = new Sprite(texture)
+    sprite.anchor.set(0.5, 1.0)
+    if (sprite.height > maxHeight) {
+      sprite.scale.set(maxHeight / sprite.height)
+    }
+    this.body.addChild(sprite)
+  }
+
   override hitTest(localX: number, localY: number): boolean {
     if (this.body.children.length > 0) {
-      // Используем getBounds с target = parent, чтобы получить координаты в пространстве слоя
-      const bounds = this.getBounds(false, this.parent ?? undefined)
+      const localBounds = this.body.getLocalBounds()
+      const left = this.x + localBounds.minX
+      const right = this.x + localBounds.maxX
+      const top = this.y + localBounds.minY
+      const bottom = this.y + localBounds.maxY
       return (
-        localX >= bounds.x &&
-        localX <= bounds.x + bounds.width &&
-        localY >= bounds.y &&
-        localY <= bounds.y + bounds.height
+        localX >= left &&
+        localX <= right &&
+        localY >= top &&
+        localY <= bottom
       )
     }
-    // Заглушка без спрайта — широкая зона над позицией
     return Math.abs(localX - this.x) < 45 && Math.abs(localY - this.y) < 120
   }
 }

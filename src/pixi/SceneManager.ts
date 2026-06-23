@@ -1,10 +1,8 @@
-import { Application, Container, Graphics, Sprite } from 'pixi.js'
+import { Application, Container, Graphics, type Texture } from 'pixi.js'
 import { ParallaxLayer } from './layers/ParallaxLayer'
 import { PanoramaTiles } from './layers/PanoramaTiles'
 import { SceneEntity } from './entities/SceneEntity'
 import { Character } from './entities/Character'
-import { Structure } from './entities/Structure'
-import { Artifact } from './entities/Artifact'
 import type { LoreData } from './entities/SceneEntity'
 import {
   LAYER_CONFIG,
@@ -12,7 +10,7 @@ import {
   MID_ENTITIES,
   NEAR_ENTITIES,
 } from './data/scene-config'
-import { SPRITE_REGISTRY } from './data/assets'
+import { preloadTextures } from './data/assets'
 import { lerp } from './utils/lerp'
 
 export type LoreCallback = (lore: LoreData, screenX: number, screenY: number) => void
@@ -28,10 +26,11 @@ export type LoreCallback = (lore: LoreData, screenX: number, screenY: number) =>
   синхронно для всех слоёв — за счёт того, что все они завязаны на один sceneX.
 
   Порядок инициализации:
-    1. Слои и панорама
-    2. Сущности из конфига (включая отрисовку зданий внутри Structure)
-    3. Сегментированные фоны mid и near
-    4. Сборка сцены, обработчик клика, тикер
+    1. Предзагрузка текстур через Assets.load()
+    2. Слои и панорама
+    3. Сущности из конфига с загруженными текстурами
+    4. Сегментированные фоны mid и near
+    5. Сборка сцены, обработчик клика, тикер
 */
 
 // Общая логическая ширина мира — один полный цикл панорамы
@@ -73,7 +72,7 @@ export class SceneManager {
   private activeLoreEntity: SceneEntity | null = null
   private activeLoreLayer: ParallaxLayer | null = null
 
-  constructor(app: Application) {
+  private constructor(app: Application) {
     this.app = app
 
     this.midPixelWidth = WORLD_WIDTH * LAYER_CONFIG.mid.scrollSpeed   // 4800
@@ -94,36 +93,34 @@ export class SceneManager {
       app.screen.height,
     )
     this.farLayer.container.addChild(this.panoramas.container)
+  }
 
-    // --- Сущности создаются ДО фонов, чтобы здания отрисовались внутри своих Structure ---
+  static async create(app: Application): Promise<SceneManager> {
+    const sm = new SceneManager(app)
 
-    this.populateEntities()
+    const textures = await preloadTextures()
 
-    // --- Сегментированные фоны для mid и near (зацикленные) ---
+    sm.buildMidBackground(app.screen.height)
+    sm.buildNearBackground(app.screen.height)
 
-    this.buildMidBackground(app.screen.height)
-    this.buildNearBackground(app.screen.height)
+    sm.populateEntities(textures)
 
-    // --- Сборка сцены ---
-
-    app.stage.addChild(this.farLayer.container)
-    app.stage.addChild(this.midLayer.container)
-    app.stage.addChild(this.nearLayer.container)
-
-    // --- Обработка кликов ---
+    app.stage.addChild(sm.farLayer.container)
+    app.stage.addChild(sm.midLayer.container)
+    app.stage.addChild(sm.nearLayer.container)
 
     app.canvas.addEventListener('click', (e: MouseEvent) => {
       const rect = app.canvas.getBoundingClientRect()
       const screenX = e.clientX - rect.left
       const screenY = e.clientY - rect.top
-      this.handleClick(screenX, screenY)
+      sm.handleClick(screenX, screenY)
     })
-
-    // --- Тикер ---
 
     app.ticker.add(() => {
-      this.updateScroll()
+      sm.updateScroll()
     })
+
+    return sm
   }
 
   // ------ Публичные методы ------
@@ -338,7 +335,6 @@ export class SceneManager {
 
   private handleClick(screenX: number, screenY: number): void {
     for (const layer of [this.nearLayer, this.midLayer]) {
-      // Переводим экранные координаты в локальные координаты слоя
       const localX = screenX - layer.container.x
 
       const entities = layer === this.nearLayer ? this.nearEntities : this.midEntities
@@ -346,7 +342,6 @@ export class SceneManager {
         if (entity.hitTest(localX, screenY)) {
           if (entity.lore && this.onLore) {
             this.onLore(entity.lore, screenX, screenY)
-            // Запоминаем сущность и её слой — чтобы попап следовал за ней при скролле
             this.activeLoreEntity = entity
             this.activeLoreLayer = layer
           }
@@ -362,118 +357,27 @@ export class SceneManager {
     layer.container.sortChildren()
   }
 
-  /*
-    populateEntities
-    Создаёт сущности из конфига. Вызывается ДО построения фонов,
-    чтобы здания могли получить свою графику прямо внутри Structure.
-  */
-  private populateEntities(): void {
+  private populateEntities(textures: Record<string, Texture>): void {
+    const maxHeight = this.app.screen.height * 0.8
+
     for (const config of MID_ENTITIES) {
-      let entity: SceneEntity | null = null
-
-      if ('parts' in config && config.parts) {
-        entity = new Character(config as Parameters<typeof Character.prototype.constructor>[0])
-      } else if ('width' in config && config.width) {
-        entity = new Structure(config as Parameters<typeof Structure.prototype.constructor>[0])
-      } else if ('states' in config) {
-        entity = new Artifact(config as Parameters<typeof Artifact.prototype.constructor>[0])
+      const entity = new Character(config)
+      const texture = textures[config.sprite]
+      if (texture) {
+        entity.setBodyTexture(texture, maxHeight)
       }
-
-      if (entity) {
-        this.resolveSpriteUrl(entity, config)
-        this.drawEntityPlaceholder(entity)
-        this.midLayer.container.addChild(entity)
-        this.midEntities.push(entity)
-      }
+      this.midLayer.container.addChild(entity)
+      this.midEntities.push(entity)
     }
 
     for (const config of NEAR_ENTITIES) {
-      let entity: SceneEntity | null = null
-
-      if ('parts' in config && config.parts) {
-        entity = new Character(config as Parameters<typeof Character.prototype.constructor>[0])
-      } else if ('states' in config) {
-        entity = new Artifact(config as Parameters<typeof Artifact.prototype.constructor>[0])
+      const entity = new Character(config)
+      const texture = textures[config.sprite]
+      if (texture) {
+        entity.setBodyTexture(texture, maxHeight)
       }
-
-      if (entity) {
-        this.resolveSpriteUrl(entity, config)
-        this.drawEntityPlaceholder(entity)
-        this.nearLayer.container.addChild(entity)
-        this.nearEntities.push(entity)
-      }
+      this.nearLayer.container.addChild(entity)
+      this.nearEntities.push(entity)
     }
-  }
-
-  /*
-    resolveSpriteUrl
-    Для сущностей со спрайтом (Character, Artifact, Structure) —
-    находит URL в SPRITE_REGISTRY по имени спрайта из конфига.
-  */
-  private resolveSpriteUrl(entity: SceneEntity, config: Record<string, unknown>): void {
-    if (entity instanceof Character) {
-      const spriteName = config.sprite as string | undefined
-      console.log(`[SceneManager] resolveSpriteUrl: entity=${entity.entityId} spriteName=${spriteName}`)
-      if (spriteName) {
-        const url = SPRITE_REGISTRY[spriteName]
-        entity.spriteUrl = url ?? null
-        console.log(`[SceneManager] resolveSpriteUrl: URL found = ${url ? 'YES' : 'NO'} → ${url}`)
-      }
-    }
-  }
-
-  private drawEntityPlaceholder(entity: SceneEntity): void {
-    // Персонаж с реальной картинкой — создаём Sprite
-    if (entity instanceof Character && entity.spriteUrl) {
-      console.log(`[SceneManager] drawEntityPlaceholder: Character '${entity.entityId}' → Sprite.from(${entity.spriteUrl})`)
-
-      const sprite = Sprite.from(entity.spriteUrl)
-
-      console.log(`[SceneManager] Sprite raw size: ${sprite.width}×${sprite.height}`)
-
-      sprite.anchor.set(0.5, 1.0)  // Якорь внизу по центру — ноги персонажа на entity.y
-
-      // Автоскейл: персонаж занимает не более 80% высоты экрана
-      const maxHeight = this.app.screen.height * 0.8
-      if (sprite.height > maxHeight) {
-        const s = maxHeight / sprite.height
-        sprite.scale.set(s)
-        console.log(`[SceneManager] Scaled: factor=${s.toFixed(3)} → ${Math.round(sprite.width)}×${Math.round(sprite.height)}`)
-      }
-
-      console.log(`[SceneManager] Entity position: x=${entity.x} y=${entity.y}`)
-      console.log(`[SceneManager] Screen: ${this.app.screen.width}×${this.app.screen.height}`)
-
-      entity.body.addChild(sprite)
-      return
-    }
-
-    // Заглушки Graphics для сущностей без картинок
-    const g = new Graphics()
-
-    if (entity instanceof Character) {
-      g.ellipse(0, 0, 18, 30)
-      g.fill({ color: 0x5577aa })
-      g.circle(0, -25, 10)
-      g.fill({ color: 0xddaa88 })
-    } else if (entity instanceof Structure) {
-      const bw = 80
-      const bh = 320
-      g.rect(0, -bh, bw, bh)
-      g.fill({ color: 0x4a3020 })
-      g.rect(4, -bh + 4, bw - 8, bh - 8)
-      g.fill({ color: 0x5a4030 })
-      for (let wy = -bh + 20; wy < -20; wy += 40) {
-        g.rect(bw / 2 - 6, wy, 12, 16)
-        g.fill({ color: 0xaaa060 })
-      }
-    } else if (entity instanceof Artifact) {
-      g.poly([0, -15, 12, 5, -2, 20, -12, 5])
-      g.fill({ color: 0x44aacc })
-      g.circle(0, 0, 4)
-      g.fill({ color: 0xffffff })
-    }
-
-    entity.addChild(g)
   }
 }
